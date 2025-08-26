@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Mike Gifford Memorial 5Pool — Mobile Demo</title>
+<style>
+:root{--bg:#fff;--fg:#111;--muted:#6b7280;--border:#e5e7eb;--green:#16a34a;--red:#dc2626;--card:#f9fafb;--chip:#f3f4f6}
+.dark{--bg:#000;--fg:#f5f5f5;--muted:#9ca3af;--border:#1f2937;--card:#0a0a0a;--chip:#111827}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+.wrap{padding:16px;min-height:100vh}
+h1{font-size:20px;margin:0 0 8px;font-weight:700} h2{font-size:16px;margin:0 0 8px;font-weight:700}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+select,button{background:transparent;color:var(--fg);border:1px solid var(--border);border-radius:8px;padding:6px 8px}
+button[disabled]{opacity:.5;cursor:not-allowed}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:12px;margin:12px 0}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+.muted{color:var(--muted)} .green{color:var(--green);font-weight:600} .red{color:var(--red);font-weight:600}
+.nowrap{white-space:nowrap} .spacer{flex:1} .scroll-x{overflow-x:auto} .small{font-size:12px}
+@media(max-width:480px){th,td{padding:10px 8px}h1{font-size:18px}}
+</style></head>
+<body><div class="wrap" id="app">
+<header class="row" style="justify-content:space-between">
+  <div><h1>Mike Gifford Memorial 5Pool — Demo</h1>
+    <div class="small muted">Your picks do not count until you click submit picks.</div></div>
+  <div class="row"><button id="themeBtn">Dark Mode</button></div>
+</header>
+
+<div class="controls">
+  <label>Mode <select id="weekType"><option value="regular">Regular Season</option><option value="playoffs">Playoffs</option></select></label>
+  <label>Phase <select id="phase"><option value="1">1) Lines Posted</option><option value="2">2) Pre-Sunday Locks Happened</option><option value="3">3) Sunday Noon Lock (Randomize)</option><option value="4">4) Final (Scored)</option></select></label>
+  <label>Team <select id="teamSel"></select></label>
+  <div class="spacer"></div><div class="small muted">Submitted: <span id="submittedCount">0</span> / <span id="requiredCount">5</span></div>
+</div>
+
+<section class="card">
+  <div class="row" style="justify-content:space-between">
+    <h2 class="nowrap">Picks</h2>
+    <div class="small muted">Regular: Thu/Sat lock at kickoff; Sun noon locks remaining. Playoffs: per-game locks only.</div>
+  </div>
+  <div class="scroll-x">
+    <table id="picksTbl"><thead><tr>
+      <th>Kickoff</th><th>Matchup</th><th>Your Pick</th><th id="bbHdr">Best Bet</th><th>Pick Availability</th><th>Status</th>
+    </tr></thead><tbody id="picksTbody"></tbody></table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Weekly Table <span class="small muted">(wins in <span class="green">green</span>; randomized shown as <span class="red">(R)</span>)</span></h2>
+  <div class="scroll-x">
+    <table><thead><tr><th>Team Name</th><th id="bbHdr2">Best Bet</th><th>Pick 2</th><th>Pick 3</th><th>Pick 4</th><th>Pick 5</th><th>W</th><th>L</th></tr></thead><tbody id="weeklyTbody"></tbody></table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Season Standings</h2>
+  <div class="scroll-x"><table><thead><tr><th>Team</th><th>W</th><th>L</th><th>GB</th></tr></thead><tbody id="standingsTbody"></tbody></table></div>
+</section>
+
+<section class="card" id="bbCard">
+  <h2>Best Bet Standings</h2>
+  <div class="scroll-x"><table><thead><tr><th>Team</th><th>W</th><th>L</th><th>GB</th></tr></thead><tbody id="bbStandingsTbody"></tbody></table></div>
+</section>
+
+<section class="card">
+  <h2>Admin Aggregates (pre-lock)</h2>
+  <div class="small">Teams with required SUBMITTED picks: <b id="aggWith"></b></div>
+  <div class="small">Teams still short (submitted): <b id="aggShort"></b></div>
+  <div class="small">Estimated randomized picks if locked now: <b id="aggRand"></b></div>
+</section>
+</div>
+
+<script>
+(function(){
+  const demoGames=[{id:1,away:"BUF",home:"KC",kickoff:"Thu 7:20p ET",preSunday:true,homeLine:-2.5},
+    {id:2,away:"DAL",home:"PHI",kickoff:"Sat 9:30a ET",preSunday:true,homeLine:-3.5},
+    {id:3,away:"MIA",home:"NE",kickoff:"Sun 12:00p ET",preSunday:false,homeLine:+1.5},
+    {id:4,away:"GB",home:"CHI",kickoff:"Sun 12:00p ET",preSunday:false,homeLine:+2.5},
+    {id:5,away:"BAL",home:"PIT",kickoff:"Sun 3:25p ET",preSunday:false,homeLine:+0.5},
+    {id:6,away:"CIN",home:"CLE",kickoff:"Sun 3:25p ET",preSunday:false,homeLine:-2.5},
+    {id:7,away:"LAR",home:"SEA",kickoff:"Sun 7:20p ET",preSunday:false,homeLine:-1.5},
+    {id:8,away:"NYG",home:"WSH",kickoff:"Mon 7:15p ET",preSunday:false,homeLine:+2.5}];
+  const finals={1:{home:24,away:27},2:{home:30,away:23},3:{home:17,away:20},4:{home:21,away:24},5:{home:13,away:16},6:{home:28,away:20},7:{home:20,away:23},8:{home:14,away:24}};
+  const demoTeams=[{id:101,name:"Bears Brigade"},{id:102,name:"Sharks United"},{id:103,name:"Lions Pride"},{id:104,name:"Falcon Force"}];
+  const state={dark:false,phase:1,weekType:'regular',currentTeamId:101,picks:{}};
+  demoTeams.forEach(t=>state.picks[t.id]={draft:[],submitted:[],submittedAt:null});
+  const req=()=>state.weekType==='regular'?5:demoGames.length;
+  const byId=id=>demoGames.find(g=>g.id===id);
+  const fmt=n=>(n>0?'+':'')+n.toFixed(1);
+  const lock=g=>state.weekType==='regular'?(g.preSunday?state.phase>=2:state.phase>=3):(g.preSunday?state.phase>=2:state.phase>=3);
+  const visible=g=>lock(g);
+  const teamState=()=>state.picks[state.currentTeamId];
+  function clearLockedDrafts(){ for(const t of demoTeams){ const ts=state.picks[t.id]; ts.draft=ts.draft.filter(p=>!lock(byId(p.gameId))); } }
+  function coveredSide(gameId){ const g=byId(gameId), f=finals[gameId]; if(!f) return null; const homeAdj=f.home+g.homeLine; if(homeAdj>f.away) return 'home'; if(homeAdj<f.away) return 'away'; return null; }
+  function submitOnePick(gameId){ const ts=teamState(), g=byId(gameId); if(lock(g)) return false; const d=ts.draft.find(p=>p.gameId===gameId); if(!d) return false; if(ts.submitted.length>=req()) return false; const i=ts.submitted.findIndex(p=>p.gameId===gameId); if(i>=0) ts.submitted.splice(i,1); ts.submitted.push(JSON.parse(JSON.stringify(d))); if(d.isBest&&state.weekType==='regular'){ ts.submitted.forEach(p=>{ if(p.gameId!==gameId) p.isBest=false; }); } ts.submittedAt=new Date(); return true; }
+  function unsubmitOnePick(gameId){ const ts=teamState(), g=byId(gameId); if(lock(g)) return false; const i=ts.submitted.findIndex(p=>p.gameId===gameId); if(i>=0) ts.submitted.splice(i,1); return true; }
+  function autoRandomizeSubmittedAll(){ if(state.phase<3) return; for(const t of demoTeams){ const ts=state.picks[t.id]; const chosen=new Set(ts.submitted.map(p=>p.gameId)); const pool=demoGames.filter(g=>!g.preSunday&&!chosen.has(g.id)); while(ts.submitted.length<req()&&pool.length){ const g=pool.splice(Math.floor(Math.random()*pool.length),1)[0]; const side=Math.random()<0.5?'home':'away'; ts.submitted.push({gameId:g.id,side,isBest:false,isRandom:true}); } if(state.weekType==='regular'&&!ts.submitted.some(p=>p.isBest)&&ts.submitted.length){ ts.submitted[Math.floor(Math.random()*ts.submitted.length)].isBest=true; } } }
+  function toggleDraft(gameId,side){ const ts=teamState(), g=byId(gameId); if(lock(g)) return; const ex=ts.draft.find(p=>p.gameId===gameId); if(ex&&ex.side===side){ ts.draft=ts.draft.filter(p=>p.gameId!==gameId); return; } if(!ex&&ts.draft.length>=req()&&state.weekType==='regular') return; if(ex){ ex.side=side; } else { ts.draft.push({gameId,side,isBest:false,isRandom:false}); } }
+  function setBestDraft(gameId){ if(state.weekType!=='regular') return; const ts=teamState(), g=byId(gameId); if(lock(g)) return; const d=ts.draft.find(p=>p.gameId===gameId); if(!d) return; ts.draft.forEach(p=>p.isBest=(p.gameId===gameId)); }
+  function calcWeeklyRow(team){ const ts=state.picks[team.id]; const arr=[...ts.submitted].sort((a,b)=>a.gameId-b.gameId); let W=0,L=0; const cells=arr.map(p=>{ const g=byId(p.gameId); let label=p.side==='home'?g.home:g.away; const cover=coveredSide(p.gameId); if(p.isRandom) label+=" <span class='red'>(R)</span>"; let html=label; if(state.phase>=4&&cover){ const win=(cover==='home'&&p.side==='home')||(cover==='away'&&p.side==='away'); if(win){W++; html=`<span class="green">${label}</span>`;} else {L++; html=label;} } return {html,isBest:!!p.isBest}; }); const best=cells.find(c=>c.isBest)?.html||""; const others=cells.filter(c=>!c.isBest).map(c=>c.html); while(state.weekType==='regular'&&others.length<4) others.push(""); return {teamName:team.name,bestBet:best,picks:others.slice(0,4),W,L}; }
+  function computeStandings(rows){ const max=Math.max(0,...rows.map(r=>r.W)); return [...rows].sort((a,b)=>b.W-a.W||a.teamName.localeCompare(b.teamName)).map(r=>({teamName:r.teamName,W:r.W,L:r.L,GB:r.W-max})); }
+  function computeBBStandings(){ const agg=demoTeams.map(t=>{ const ts=state.picks[t.id]; let W=0,L=0; ts.submitted.forEach(p=>{ if(!p.isBest||state.phase<4) return; const cover=coveredSide(p.gameId); if(!cover) return; const win=(cover==='home'&&p.side==='home')||(cover==='away'&&p.side==='away'); if(win) W++; else L++; }); return {teamName:t.name,W,L}; }); const max=Math.max(0,...agg.map(r=>r.W)); return agg.sort((a,b)=>b.W-a.W||a.teamName.localeCompare(b.teamName)).map(r=>({...r,GB:r.W-max})); }
+  function renderControls(){ document.getElementById('weekType').value=state.weekType; document.getElementById('phase').value=String(state.phase); const teamSel=document.getElementById('teamSel'); teamSel.innerHTML=demoTeams.map(t=>`<option value="${t.id}">${t.name}</option>`).join(''); teamSel.value=state.currentTeamId; document.getElementById('requiredCount').textContent=req(); }
+  function renderPicks(){ const ts=teamState(); const submittedCount=ts.submitted.length; document.getElementById('submittedCount').textContent=submittedCount; const showBB=state.weekType==='regular'; document.getElementById('bbHdr').style.display=showBB?'table-cell':'none'; const tbody=document.getElementById('picksTbody'); tbody.innerHTML=''; demoGames.forEach(g=>{ const draft=ts.draft.find(p=>p.gameId===g.id); const submitted=ts.submitted.find(p=>p.gameId===g.id); const locked=lock(g); const atCap=submittedCount>=req(); const awayLine=-g.homeLine; const canSubmit=!!draft&&!submitted&&!locked&&!atCap; const canUnsubmit=!!submitted&&!locked; const tr=document.createElement('tr'); const tdK=document.createElement('td'); tdK.textContent=g.kickoff; tr.appendChild(tdK); const tdM=document.createElement('td'); tdM.textContent=`${g.away} ${fmt(awayLine)} @ ${g.home} ${fmt(g.homeLine)}`; tr.appendChild(tdM); const tdP=document.createElement('td'); const rA=document.createElement('input'); rA.type='radio'; rA.name='pick_'+g.id; rA.checked=draft?.side==='away'; rA.disabled=locked||(!draft&&submittedCount>=req()&&state.weekType==='regular'); rA.addEventListener('click',e=>{e.preventDefault(); toggleDraft(g.id,'away'); renderPicks();}); const lA=document.createElement('label'); lA.className='row'; lA.append(rA,document.createTextNode(' '+g.away+' '+fmt(awayLine))); const rH=document.createElement('input'); rH.type='radio'; rH.name='pick_'+g.id; rH.checked=draft?.side==='home'; rH.disabled=locked||(!draft&&submittedCount>=req()&&state.weekType==='regular'); rH.addEventListener('click',e=>{e.preventDefault(); toggleDraft(g.id,'home'); renderPicks();}); const lH=document.createElement('label'); lH.className='row'; lH.append(rH,document.createTextNode(' '+g.home+' '+fmt(g.homeLine))); tdP.append(lA,document.createTextNode(' '),lH); if(canSubmit){ const b=document.createElement('button'); b.textContent='Submit'; b.addEventListener('click',()=>{submitOnePick(g.id); renderAll();}); tdP.append(' ',b);} if(canUnsubmit){ const b2=document.createElement('button'); b2.textContent='Unsubmit'; b2.addEventListener('click',()=>{unsubmitOnePick(g.id); renderAll();}); tdP.append(' ',b2);} tr.appendChild(tdP); const tdBB=document.createElement('td'); tdBB.style.display=showBB?'table-cell':'none'; const bb=document.createElement('input'); bb.type='radio'; bb.name='best'; bb.checked=!!draft?.isBest; bb.disabled=locked||!draft; bb.addEventListener('click',e=>{e.preventDefault(); setBestDraft(g.id); renderPicks();}); tdBB.appendChild(bb); tr.appendChild(tdBB); const tdA=document.createElement('td'); tdA.textContent=locked?'Locked':'Open'; tr.appendChild(tdA); const tdS=document.createElement('td'); if(submitted){ tdS.innerHTML='<span class="green">Submitted</span>'; } else if(draft){ tdS.innerHTML='<span class="red">Unsubmitted</span>'; } tr.appendChild(tdS); if(locked&&draft&&!submitted){ setTimeout(()=>{ const tss=teamState(); tss.draft=tss.draft.filter(p=>p.gameId!==g.id); renderPicks();},0);} tbody.appendChild(tr); }); }
+  function renderWeekly(){ const showBB=state.weekType==='regular'; document.getElementById('bbHdr2').style.display=showBB?'table-cell':'none'; const tbody=document.getElementById('weeklyTbody'); tbody.innerHTML=''; const rows=demoTeams.map(calcWeeklyRow).sort((a,b)=>a.teamName.localeCompare(b.teamName)); rows.forEach(r=>{ const tr=document.createElement('tr'); const tds=[]; tds.push(r.teamName); if(showBB) tds.push(r.bestBet); r.picks.forEach(x=>tds.push(x)); tds.push(String(r.W)); tds.push(String(r.L)); tds.forEach((cell,i)=>{ const td=document.createElement('td'); if(i===0){ td.textContent=cell; } else { td.innerHTML=cell; } tr.appendChild(td); }); tbody.appendChild(tr); }); }
+  function renderStandings(){ const rows=demoTeams.map(calcWeeklyRow); const st=computeStandings(rows); const tbody=document.getElementById('standingsTbody'); tbody.innerHTML=''; st.forEach(r=>{ const tr=document.createElement('tr'); ['teamName','W','L','GB'].forEach(k=>{ const td=document.createElement('td'); td.textContent=String(r[k]); tr.appendChild(td); }); tbody.appendChild(tr); }); }
+  function renderBBStandings(){ const show=state.weekType==='regular'; document.getElementById('bbCard').style.display=show?'block':'none'; if(!show) return; const rows=computeBBStandings(); const tbody=document.getElementById('bbStandingsTbody'); tbody.innerHTML=''; rows.forEach(r=>{ const tr=document.createElement('tr'); ['teamName','W','L','GB'].forEach(k=>{ const td=document.createElement('td'); td.textContent=String(r[k]); tr.appendChild(td); }); tbody.appendChild(tr); }); }
+  function renderAdminAgg(){ const withReq=demoTeams.filter(t=>state.picks[t.id].submitted.length>=req()).length; const short=demoTeams.filter(t=>state.picks[t.id].submitted.length<req()).length; const rand=demoTeams.reduce((a,t)=>a+Math.max(0,req()-state.picks[t.id].submitted.length),0); document.getElementById('aggWith').textContent=withReq; document.getElementById('aggShort').textContent=short; document.getElementById('aggRand').textContent=rand; }
+  function renderAll(){ document.body.classList.toggle('dark',state.dark); renderControls(); renderPicks(); renderWeekly(); renderStandings(); renderBBStandings(); renderAdminAgg(); }
+  document.getElementById('themeBtn').addEventListener('click',()=>{ state.dark=!state.dark; document.getElementById('themeBtn').textContent=state.dark?'Light Mode':'Dark Mode'; renderAll(); });
+  document.getElementById('weekType').addEventListener('change',e=>{ state.weekType=e.target.value; clearLockedDrafts(); renderAll(); });
+  document.getElementById('phase').addEventListener('change',e=>{ state.phase=Number(e.target.value); clearLockedDrafts(); autoRandomizeSubmittedAll(); renderAll(); });
+  document.getElementById('teamSel').addEventListener('change',e=>{ state.currentTeamId=Number(e.target.value); renderAll(); });
+  // init
+  renderAll();
+})();
+</script>
+</body></html>
